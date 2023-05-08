@@ -1,21 +1,42 @@
 version: 2.1
-orbs:
-  node: circleci/node@5.0.2
 jobs:
-  build_lint:
-    executor: node/default
+  build:
+    docker:
+      - image: docker:20.10
     steps:
       - checkout
-      - node/install-packages:
-          pkg-manager: npm
+      - run: docker build -t rails-back .
+      - run: docker tag rails-back your-docker-registry/rails-back
+      - run: echo ${{ secrets.DOCKER_REGISTRY_PASSWORD}} | docker login 
+--username ${{ secrets.DOCKER_REGISTRY_USERNAME}} --password-stdin 
+your-docker-registry
+      - run: docker push your-docker-registry/rails-back
+  deploy:
+    docker:
+      - image: circleci/ssh:0.1.10
+    steps:
       - run:
-          name: Run linter
-          command: npm run lint
-      - persist_to_workspace:
-          root: ~/project
-          paths:
-            - .
+          name: Install ssh-agent
+          command: |
+            eval "$(ssh-agent -s)"
+            ssh-add <(echo "${{ secrets.SSH_PRIVATE_KEY}}")
+            ssh-add <(echo "${{ secrets.SSH_PUBLIC_KEY}}")
+      - add_ssh_keys
+      - run:
+          name: Deploy to VPS server
+          command: |
+            ssh your-user@your-server "docker pull 
+your-docker-registry/rails-back"
+            ssh your-user@your-server "docker run -d --name rails-back -p 
+80:80 your-docker-registry/rails-back"
 workflows:
-  test_my_app:
+  version: 2
+  build-and-deploy:
     jobs:
-      - build_lint
+      - build:
+          filters:
+            branches:
+              only: main
+      - deploy:
+          requires:
+            - build
