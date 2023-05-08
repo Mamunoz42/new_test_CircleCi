@@ -1,0 +1,21 @@
+version: 2.1
+orbs:
+  node: circleci/node@5.0.2
+jobs:
+  build_lint:
+    executor: node/default
+    steps:
+      - checkout
+      - node/install-packages:
+          pkg-manager: npm
+      - run:
+          name: Run linter
+          command: npm run lint
+      - persist_to_workspace:
+          root: ~/project
+          paths:
+            - .
+workflows:
+  test_my_app:
+    jobs:
+      - build_lint
